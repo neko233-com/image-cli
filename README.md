@@ -14,6 +14,8 @@ image-cli check -profile ui button.png
 
 基于 **Go 1.27**，单文件发布，支持 GitHub Release **懒更新提示**与 `image-cli update` 一键升级（内置 gh-proxy / ghfast / ghproxy 镜像探测）。
 
+CI 在 Linux / Windows / macOS 上运行 `go vet` 与全量测试（含 CLI e2e、安装脚本 checksum 校验）。
+
 ## 安装
 
 ### 一键安装（推荐）

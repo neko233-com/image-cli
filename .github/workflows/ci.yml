@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  test-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +15,41 @@ jobs:
         with:
           go-version: "1.27.x"
           cache: true
+      - name: Verify install.sh syntax
+        run: bash -n scripts/install.sh
+      - name: Vet
+        run: go vet ./...
       - name: Test
-        run: go test ./...
+        run: go test -race -count=1 ./...
+      - name: Build
+        run: go build -o /dev/null ./cmd/image-cli
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -count=1 ./...
+      - name: Build
+        run: go build -o NUL ./cmd/image-cli
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -count=1 ./...
       - name: Build
         run: go build -o /dev/null ./cmd/image-cli
