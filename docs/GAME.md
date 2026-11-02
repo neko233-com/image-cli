@@ -78,3 +78,13 @@ image-cli game batch-prepare -profile ui -no-compress -r ./Assets/UI
 ## 输出 manifest
 
 每次 `game prepare` 默认生成 `<basename>.image-cli.json`，记录 profile、平台、输出文件列表与警告，便于 CI / Unity / Unreal 流水线消费。
+
+`warnings` 中含各发行平台 **budget** 检测结果（`budget_overall` / `budget_summary` 在 `meta`）。详见 [BUDGET.md](BUDGET.md)。
+
+## 尺寸是否合理
+
+```bash
+image-cli check -profile ui hud.png
+image-cli check -platform ios,android,minigame pack.png
+image-cli info -budget -json texture.png
+```

@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          ldflags="-s -w -X github.com/neko233-com/image-cli/internal/version.Version=${TAG}"
+          ldflags="-s -w -X github.com/neko233-com/image-cli/internal/version.Version=${TAG} -X github.com/neko233-com/image-cli/internal/version.Commit=${GITHUB_SHA}"
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             os="${target%/*}"
             arch="${target#*/}"

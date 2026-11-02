@@ -84,10 +84,28 @@ func Prepare(input string, opts PrepareOptions) (PrepareResult, error) {
 	if err != nil {
 		return PrepareResult{}, err
 	}
-	_ = srcFmt
 
 	var warnings []string
 	b := im.Bounds()
+	var fileBytes int64
+	if st, err := os.Stat(input); err == nil {
+		fileBytes = st.Size()
+	}
+	npot := !isPowerOfTwo(b.Dx()) || !isPowerOfTwo(b.Dy())
+	budget := EvaluateBudget(BudgetInput{
+		Width: b.Dx(), Height: b.Dy(), FileBytes: fileBytes, NPOT: npot, Usage: opts.Profile,
+	}, PlatformsForProfile(opts.Profile))
+	for _, pv := range budget.Platforms {
+		if pv.Status == SeverityOK {
+			continue
+		}
+		warnings = append(warnings, fmt.Sprintf("budget/%s (%s): %s", pv.Platform, pv.Status, pv.Messages[0]))
+	}
+	if budget.Overall == SeverityFail {
+		warnings = append(warnings, "budget: "+budget.Summary)
+	}
+
+	b = im.Bounds()
 	if maxEdge > 0 && (b.Dx() > maxEdge || b.Dy() > maxEdge) {
 		im = img.Resize(im, maxEdge, maxEdge, img.ResizeFit)
 		warnings = append(warnings, fmt.Sprintf("scaled to max edge %d", maxEdge))
@@ -120,6 +138,8 @@ func Prepare(input string, opts PrepareOptions) (PrepareResult, error) {
 		Warnings: warnings,
 		Meta: map[string]string{
 			"source_format": srcFmt,
+			"budget_overall": string(budget.Overall),
+			"budget_summary": budget.Summary,
 		},
 	}}
 	result.Manifest.Outputs = append(result.Manifest.Outputs, ManifestOutput{
@@ -218,4 +238,8 @@ func premultiplyAlpha(src image.Image) image.Image {
 		}
 	}
 	return out
+}
+
+func isPowerOfTwo(n int) bool {
+	return n > 0 && (n&(n-1)) == 0
 }

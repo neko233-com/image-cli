@@ -4,6 +4,14 @@
 
 **游戏向默认策略：UI / 2D 不生成 mipmap**；3D 贴图可用 `game prepare` 按场景 profile 处理，**移动端默认 ASTC**（需 `astcenc`），**PC 端 BC7/BC5/BC6H**（需 `texconv`）。详见 [docs/GAME.md](docs/GAME.md)。
 
+**多平台尺寸检测**：`check` / `info -budget` 覆盖 Windows、macOS、iOS、Android、WebGL、小游戏、Switch 等预算，见 [docs/BUDGET.md](docs/BUDGET.md)。
+
+```bash
+image-cli version          # 含 GitHub 仓库、Releases、安装脚本地址
+image-cli version -json
+image-cli check -profile ui button.png
+```
+
 基于 **Go 1.27**，单文件发布，支持 GitHub Release **懒更新提示**与 `image-cli update` 一键升级（内置 gh-proxy / ghfast / ghproxy 镜像探测）。
 
 ## 安装

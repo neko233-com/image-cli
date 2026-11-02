@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/neko233-com/image-cli/internal/game"
 	"github.com/neko233-com/image-cli/internal/img"
 	"github.com/neko233-com/image-cli/internal/updater"
 	"github.com/neko233-com/image-cli/internal/version"
@@ -28,7 +29,7 @@ func main() {
 	case "help", "-h", "--help":
 		usage()
 	case "version", "-v", "--version":
-		fmt.Println("image-cli", version.String())
+		runVersion(os.Args[2:])
 	case "update", "upgrade":
 		runUpdate(os.Args[2:])
 	default:
@@ -99,6 +100,8 @@ func dispatch(cmd string, args []string) error {
 		return runWatermark(args)
 	case "batch-convert":
 		return runBatchConvert(args)
+	case "check":
+		return runCheck(args)
 	case "game":
 		return runGame(args)
 	case "mipmap":
@@ -134,15 +137,50 @@ func runInfo(args []string) error {
 	fs := flag.NewFlagSet("info", flag.ExitOnError)
 	exif := fs.Bool("exif", false, "读取 JPEG/TIFF EXIF")
 	asJSON := fs.Bool("json", false, "JSON 输出")
+	budget := fs.Bool("budget", false, "多平台尺寸/体积预算检测")
+	platforms := fs.String("platform", "all", "budget 检测的平台列表")
+	profile := fs.String("profile", "", "budget 按场景筛选平台")
 	_ = fs.Parse(args)
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: image-cli info [-exif] [-json] <file>")
+		return fmt.Errorf("usage: image-cli info [-exif] [-json] [-budget] <file>")
 	}
 	info, err := img.Inspect(fs.Arg(0), *exif)
 	if err != nil {
 		return err
 	}
-	return img.PrintInfo(info, *asJSON)
+	if !*budget {
+		return img.PrintInfo(info, *asJSON)
+	}
+	var plist []game.Platform
+	if *profile != "" {
+		p, err := game.ParseProfile(*profile)
+		if err != nil {
+			return err
+		}
+		plist = game.PlatformsForProfile(p)
+	} else {
+		plist, err = game.ParsePlatforms(*platforms)
+		if err != nil {
+			return err
+		}
+	}
+	report := game.EvaluateBudget(game.BudgetInput{
+		Width: info.Width, Height: info.Height, FileBytes: info.SizeBytes, NPOT: info.NPOT,
+	}, plist)
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(struct {
+			img.FileInfo
+			Budget game.BudgetReport `json:"budget"`
+		}{info, report})
+	}
+	if err := img.PrintInfo(info, false); err != nil {
+		return err
+	}
+	fmt.Println()
+	printBudgetReport(report)
+	return nil
 }
 
 func runConvert(args []string) error {
@@ -571,7 +609,8 @@ func usage() {
   image-cli <command> [flags] [args]
 
 命令:
-  info            图片元信息（尺寸、alpha、NPOT、可选 EXIF）
+  info            图片元信息（-budget 多平台预算检测）
+  check           专用于平台尺寸/体积是否合理（CI 友好）
   convert         格式转换 png/jpeg/webp/gif/bmp/tiff
   batch-convert   批量转换目录
   optimize        游戏向压缩（可选缩放到 max-width/height）
@@ -588,7 +627,7 @@ func usage() {
   game astc|bc|pack-orm  纹理压缩与 ORM 打包
   game profiles   打印各场景默认策略 JSON
   update          检查并更新到最新 Release
-  version         显示版本
+  version         显示版本、GitHub 仓库与安装地址（-json）
 
 环境变量:
   IMAGE_CLI_NO_UPDATE_CHECK=1     关闭懒更新提示
