@@ -38,10 +38,14 @@ curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/neko233-com/ima
 irm https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
 ```
 
-国内推荐（自动镜像 + raw 加速）：
+国内推荐（Release 下载走镜像；脚本建议用 main 直链或 `-File` 避免镜像缓存旧脚本）：
 
 ```powershell
-irm https://ghproxy.net/https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
+# 二进制下载会自动尝试 gh-proxy / ghfast / ghproxy 等镜像
+powershell -NoProfile -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 -OutFile $env:TEMP\image-cli-install.ps1; & $env:TEMP\image-cli-install.ps1"
+
+# 或一行（需网络能访问 raw.githubusercontent.com）
+irm https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
 ```
 
 也可本地执行：`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1`

@@ -1,4 +1,4 @@
-﻿# image-cli Windows installer（自动 GitHub / 镜像加速，适配国内网络）
+# image-cli Windows installer（自动 GitHub / 镜像加速，适配国内网络）
 # Usage:
 #   irm https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
 #   irm https://ghproxy.net/https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
