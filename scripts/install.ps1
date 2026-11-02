@@ -11,13 +11,23 @@
 # 一键安装: irm .../install.ps1 | iex  （脚本内勿使用 CmdletBinding，否则 iex 会失败）
 
 param(
-    [string]$Version = $(if ($env:IMAGE_CLI_VERSION) { $env:IMAGE_CLI_VERSION } else { "latest" }),
-    [string]$Repo = $(if ($env:IMAGE_CLI_REPO) { $env:IMAGE_CLI_REPO } else { "neko233-com/image-cli" }),
-    [string]$InstallDir = $(if ($env:IMAGE_CLI_INSTALL_DIR) { $env:IMAGE_CLI_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "image-cli" }),
-    [ValidateSet("auto", "github", "mirror")]
-    [string]$Source = $(if ($env:IMAGE_CLI_DOWNLOAD_SOURCE) { $env:IMAGE_CLI_DOWNLOAD_SOURCE } else { "auto" }),
+    [string]$Version = "latest",
+    [string]$Repo = "neko233-com/image-cli",
+    [string]$InstallDir = "",
+    [string]$Source = "auto",
     [switch]$NoPathUpdate
 )
+
+if ($env:IMAGE_CLI_VERSION) { $Version = $env:IMAGE_CLI_VERSION }
+if ($env:IMAGE_CLI_REPO) { $Repo = $env:IMAGE_CLI_REPO }
+if ($env:IMAGE_CLI_DOWNLOAD_SOURCE) { $Source = $env:IMAGE_CLI_DOWNLOAD_SOURCE }
+if ([string]::IsNullOrWhiteSpace($InstallDir)) {
+    if ($env:IMAGE_CLI_INSTALL_DIR) {
+        $InstallDir = $env:IMAGE_CLI_INSTALL_DIR
+    } else {
+        $InstallDir = Join-Path $env:LOCALAPPDATA "image-cli"
+    }
+}
 
 $ErrorActionPreference = "Stop"
 $BinaryName = "image-cli"
@@ -25,6 +35,13 @@ $UserAgent = "image-cli-installer"
 
 function Fail([string]$Message) {
     throw "image-cli installer: $Message"
+}
+
+switch ($Source) {
+    "auto" { }
+    "github" { }
+    "mirror" { }
+    default { Fail "IMAGE_CLI_DOWNLOAD_SOURCE must be auto, github, or mirror" }
 }
 
 function Get-MirrorPrefixes {
