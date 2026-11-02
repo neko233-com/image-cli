@@ -1,62 +1,197 @@
-﻿# image-cli Windows installer（GitHub 镜像加速）
+﻿# image-cli Windows installer（自动 GitHub / 镜像加速，适配国内网络）
 # Usage:
 #   irm https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
 #   irm https://ghproxy.net/https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
+#
+# 环境变量:
+#   IMAGE_CLI_DOWNLOAD_SOURCE = auto | github | mirror  （默认 auto）
+#   IMAGE_CLI_UPDATE_MIRRORS  = 镜像前缀列表（逗号分隔，默认 gh-proxy/ghfast/ghproxy）
+#   IMAGE_CLI_PREFER_MIRROR   = 1 时 auto 模式优先走镜像
+#   IMAGE_CLI_DIRECT_ONLY     = 1 时仅直连 GitHub
 
 [CmdletBinding()]
 param(
     [string]$Version = $(if ($env:IMAGE_CLI_VERSION) { $env:IMAGE_CLI_VERSION } else { "latest" }),
     [string]$Repo = $(if ($env:IMAGE_CLI_REPO) { $env:IMAGE_CLI_REPO } else { "neko233-com/image-cli" }),
     [string]$InstallDir = $(if ($env:IMAGE_CLI_INSTALL_DIR) { $env:IMAGE_CLI_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "image-cli" }),
+    [ValidateSet("auto", "github", "mirror")]
+    [string]$Source = $(if ($env:IMAGE_CLI_DOWNLOAD_SOURCE) { $env:IMAGE_CLI_DOWNLOAD_SOURCE } else { "auto" }),
     [switch]$NoPathUpdate
 )
 
 $ErrorActionPreference = "Stop"
 $BinaryName = "image-cli"
+$UserAgent = "image-cli-installer"
 
 function Fail([string]$Message) {
     throw "image-cli installer: $Message"
 }
 
-function Get-CandidateUrls([string]$OriginalUrl) {
-    $urls = [System.Collections.Generic.List[string]]::new()
-    $urls.Add($OriginalUrl)
-    if ($env:IMAGE_CLI_DIRECT_ONLY -eq "1") { return $urls }
-    $mirrors = if ($null -ne $env:IMAGE_CLI_UPDATE_MIRRORS) { $env:IMAGE_CLI_UPDATE_MIRRORS } else { "https://gh-proxy.com/,https://ghfast.top/,https://ghproxy.net/" }
-    foreach ($mirror in ($mirrors -split ",")) {
-        if ([string]::IsNullOrWhiteSpace($mirror)) { continue }
-        $urls.Add(($mirror.TrimEnd("/") + "/" + $OriginalUrl))
+function Get-MirrorPrefixes {
+    $raw = if ($null -ne $env:IMAGE_CLI_UPDATE_MIRRORS) {
+        $env:IMAGE_CLI_UPDATE_MIRRORS
+    } else {
+        "https://gh-proxy.com/,https://ghfast.top/,https://ghproxy.net/,https://mirror.ghproxy.com/"
     }
-    return $urls
+    $list = [System.Collections.Generic.List[string]]::new()
+    foreach ($part in ($raw -split ",")) {
+        $part = $part.Trim()
+        if ([string]::IsNullOrWhiteSpace($part)) { continue }
+        if ($part -notmatch "^https://") { continue }
+        $list.Add($part.TrimEnd("/"))
+    }
+    return $list
 }
 
-function Get-FastestUrl([string]$OriginalUrl) {
-    $best = $null
-    $bestSeconds = [double]::PositiveInfinity
-    foreach ($candidate in (Get-CandidateUrls $OriginalUrl)) {
-        $watch = [System.Diagnostics.Stopwatch]::StartNew()
-        try {
-            $response = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $candidate -Headers @{ Range = "bytes=0-65535" } -MaximumRedirection 5 -TimeoutSec 8
-            $watch.Stop()
-            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400 -and $watch.Elapsed.TotalSeconds -lt $bestSeconds) {
-                $best = $candidate
-                $bestSeconds = $watch.Elapsed.TotalSeconds
+function Expand-Routes([string]$OriginalUrl) {
+    $routes = [System.Collections.Generic.List[string]]::new()
+    $seen = @{}
+
+    function Add-Route([string]$Url) {
+        if ([string]::IsNullOrWhiteSpace($Url)) { return }
+        if ($seen.ContainsKey($Url)) { return }
+        $seen[$Url] = $true
+        [void]$routes.Add($Url)
+    }
+
+    $mirrors = Get-MirrorPrefixes
+    $preferMirror = ($Source -eq "mirror") -or ($env:IMAGE_CLI_PREFER_MIRROR -eq "1")
+
+    switch ($Source) {
+        "github" {
+            Add-Route $OriginalUrl
+        }
+        "mirror" {
+            foreach ($mirror in $mirrors) {
+                if ($mirror -match "\{url\}") {
+                    Add-Route ($mirror -replace "\{url\}", $OriginalUrl)
+                } else {
+                    Add-Route ($mirror + "/" + $OriginalUrl)
+                }
             }
-        } catch {
-            $watch.Stop()
+        }
+        default {
+            if ($env:IMAGE_CLI_DIRECT_ONLY -eq "1") {
+                Add-Route $OriginalUrl
+            } elseif ($preferMirror) {
+                foreach ($mirror in $mirrors) {
+                    if ($mirror -match "\{url\}") {
+                        Add-Route ($mirror -replace "\{url\}", $OriginalUrl)
+                    } else {
+                        Add-Route ($mirror + "/" + $OriginalUrl)
+                    }
+                }
+                Add-Route $OriginalUrl
+            } else {
+                Add-Route $OriginalUrl
+                foreach ($mirror in $mirrors) {
+                    if ($mirror -match "\{url\}") {
+                        Add-Route ($mirror -replace "\{url\}", $OriginalUrl)
+                    } else {
+                        Add-Route ($mirror + "/" + $OriginalUrl)
+                    }
+                }
+            }
         }
     }
-    if (-not $best) { Fail "no reachable route for $OriginalUrl" }
-    return $best
+    return $routes
+}
+
+function Test-Route([string]$Url) {
+    $headers = @{
+        "User-Agent" = $UserAgent
+        "Accept"     = "*/*"
+    }
+    foreach ($mode in @("head", "range", "gettiny")) {
+        try {
+            switch ($mode) {
+                "head" {
+                    $response = Invoke-WebRequest -UseBasicParsing -Method Head -Uri $Url -Headers $headers -TimeoutSec 12 -MaximumRedirection 8
+                }
+                "range" {
+                    $headersRange = @{
+                        "User-Agent" = $UserAgent
+                        "Accept"     = "*/*"
+                        "Range"      = "bytes=0-8191"
+                    }
+                    $response = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $Url -Headers $headersRange -TimeoutSec 12 -MaximumRedirection 8
+                }
+                default {
+                    $response = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $Url -Headers $headers -TimeoutSec 12 -MaximumRedirection 8
+                }
+            }
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {
+                return $true
+            }
+        } catch {
+            continue
+        }
+    }
+    return $false
+}
+
+function Select-Routes([string]$OriginalUrl) {
+    $routes = Expand-Routes $OriginalUrl
+    $probed = [System.Collections.Generic.List[object]]::new()
+    foreach ($candidate in $routes) {
+        $watch = [System.Diagnostics.Stopwatch]::StartNew()
+        if (Test-Route $candidate) {
+            $watch.Stop()
+            [void]$probed.Add([pscustomobject]@{ Url = $candidate; Ms = $watch.Elapsed.TotalMilliseconds })
+        }
+    }
+    if ($probed.Count -gt 0) {
+        return @($probed | Sort-Object Ms | ForEach-Object { $_.Url })
+    }
+    return @($routes)
+}
+
+function Invoke-DownloadFile([string]$OriginalUrl, [string]$Destination) {
+    $ordered = Select-Routes $OriginalUrl
+    $lastError = $null
+    foreach ($url in $ordered) {
+        try {
+            Invoke-WebRequest -UseBasicParsing -Method Get -Uri $url -Headers @{ "User-Agent" = $UserAgent } -OutFile $Destination -TimeoutSec 300 -MaximumRedirection 8
+            Write-Host "Download route: $url"
+            return $url
+        } catch {
+            $lastError = $_
+        }
+    }
+    Fail ("unable to download " + $OriginalUrl + " (tried " + $ordered.Count + " routes): " + $lastError.Exception.Message)
+}
+
+function Invoke-ReleaseJson([string]$OriginalApiUrl) {
+    $ordered = Select-Routes $OriginalApiUrl
+    $headers = @{
+        "User-Agent" = $UserAgent
+        "Accept"     = "application/vnd.github+json"
+    }
+    $lastError = $null
+    foreach ($url in $ordered) {
+        try {
+            $release = Invoke-RestMethod -Uri $url -Headers $headers -TimeoutSec 30 -MaximumRedirection 8
+            Write-Host "Release metadata route: $url"
+            return $release
+        } catch {
+            $lastError = $_
+        }
+    }
+    Fail ("unable to fetch latest release metadata: " + $lastError.Exception.Message)
+}
+
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+} catch {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 }
 
 if ([string]::IsNullOrWhiteSpace($Version) -or $Version -eq "latest") {
-    $apiUrl = Get-FastestUrl "https://api.github.com/repos/$Repo/releases/latest"
-    $release = Invoke-RestMethod -Headers @{ "User-Agent" = "image-cli-installer" } -Uri $apiUrl
+    $apiUrl = "https://api.github.com/repos/$Repo/releases/latest"
+    $release = Invoke-ReleaseJson $apiUrl
     $Version = $release.tag_name
 }
 if (-not $Version.StartsWith("v")) { $Version = "v$Version" }
-$versionNumber = $Version.TrimStart("v")
 
 $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 switch ($arch) {
@@ -71,13 +206,17 @@ $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("image-cli-install-" + [
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 
 try {
-    Write-Host "Installing image-cli $Version (windows/$archName)"
+    Write-Host "Installing image-cli $Version (windows/$archName) [source=$Source]"
     $binary = Join-Path $tempDir $asset
     $checksums = Join-Path $tempDir "SHA256SUMS"
-    $assetUrl = Get-FastestUrl "$baseUrl/$asset"
-    $routeBase = $assetUrl.Substring(0, $assetUrl.Length - ("/" + $asset).Length)
-    Invoke-WebRequest -Headers @{ "User-Agent" = "image-cli-installer" } -Uri "$routeBase/$asset" -OutFile $binary
-    Invoke-WebRequest -Headers @{ "User-Agent" = "image-cli-installer" } -Uri "$routeBase/SHA256SUMS" -OutFile $checksums
+
+    $assetDownloaded = Invoke-DownloadFile "$baseUrl/$asset" $binary
+    $routeBase = $assetDownloaded.Substring(0, $assetDownloaded.Length - ("/" + $asset).Length)
+    try {
+        Invoke-WebRequest -UseBasicParsing -Method Get -Uri "$routeBase/SHA256SUMS" -Headers @{ "User-Agent" = $UserAgent } -OutFile $checksums -TimeoutSec 120 -MaximumRedirection 8
+    } catch {
+        Invoke-DownloadFile "$baseUrl/SHA256SUMS" $checksums | Out-Null
+    }
 
     $line = Get-Content $checksums | Where-Object { $_ -match "\s$([regex]::Escape($asset))$" -or $_ -match "\sdist/$([regex]::Escape($asset))$" } | Select-Object -First 1
     if (-not $line) { Fail "checksum missing for $asset" }

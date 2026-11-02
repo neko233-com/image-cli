@@ -10,6 +10,7 @@ set -euo pipefail
 VERSION="${1:-latest}"
 BINARY_NAME="image-cli"
 REPO="${IMAGE_CLI_REPO:-neko233-com/image-cli}"
+DOWNLOAD_SOURCE="${IMAGE_CLI_DOWNLOAD_SOURCE:-auto}"
 
 detect_os() {
     case "$(uname -s)" in
@@ -30,18 +31,52 @@ detect_arch() {
 
 route_urls() {
     local original="$1"
-    printf '%s\n' "$original"
-    if [ "${IMAGE_CLI_DIRECT_ONLY:-0}" = "1" ]; then
+    if [ "${IMAGE_CLI_DIRECT_ONLY:-0}" = "1" ] || [ "$DOWNLOAD_SOURCE" = "github" ]; then
+        printf '%s\n' "$original"
         return 0
     fi
-    local mirrors="${IMAGE_CLI_UPDATE_MIRRORS-https://gh-proxy.com/,https://ghfast.top/,https://ghproxy.net/}"
+    local mirrors="${IMAGE_CLI_UPDATE_MIRRORS-https://gh-proxy.com/,https://ghfast.top/,https://ghproxy.net/,https://mirror.ghproxy.com/}"
+    local prefer=0
+    [ "$DOWNLOAD_SOURCE" = "mirror" ] && prefer=1
+    [ "${IMAGE_CLI_PREFER_MIRROR:-0}" = "1" ] && prefer=1
+    emit_mirror() {
+        local mirror="$1"
+        [ -n "$mirror" ] || return 0
+        case "$mirror" in
+            *'{url}'*) printf '%s\n' "${mirror//\{url\}/$original}" ;;
+            *) printf '%s\n' "${mirror%/}/$original" ;;
+        esac
+    }
+    if [ "$prefer" -eq 1 ]; then
+        local old_ifs="$IFS"
+        IFS=,
+        for mirror in $mirrors; do emit_mirror "$mirror"; done
+        IFS="$old_ifs"
+        printf '%s\n' "$original"
+        return 0
+    fi
+    printf '%s\n' "$original"
     local old_ifs="$IFS"
     IFS=,
-    for mirror in $mirrors; do
-        [ -n "$mirror" ] || continue
-        printf '%s\n' "${mirror%/}/$original"
-    done
+    for mirror in $mirrors; do emit_mirror "$mirror"; done
     IFS="$old_ifs"
+}
+
+download_first_ok() {
+    local dest="$1"
+    local original="$2"
+    local candidate
+    while IFS= read -r candidate; do
+        [ -n "$candidate" ] || continue
+        if curl -fsSL --max-time 300 -o "$dest" "$candidate" 2>/dev/null; then
+            echo "Download route: $candidate" >&2
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done <<EOF
+$(route_urls "$original")
+EOF
+    return 1
 }
 
 fastest_route() {
@@ -71,8 +106,24 @@ EOF
 get_latest_version() {
     local api="https://api.github.com/repos/${REPO}/releases/latest"
     local route
-    route="$(fastest_route "$api")" || return 1
-    curl -fsSL --max-time 15 "$route" | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p'
+    route="$(fastest_route "$api")" || route=""
+    if [ -n "$route" ]; then
+        curl -fsSL --max-time 20 "$route" | sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p' && return 0
+    fi
+    local tmp ver
+    tmp="$(mktemp)"
+    while IFS= read -r candidate; do
+        [ -n "$candidate" ] || continue
+        if curl -fsSL --max-time 20 -o "$tmp" "$candidate" 2>/dev/null; then
+            ver="$(sed -nE 's/.*"tag_name": *"v([^"]+)".*/\1/p' "$tmp")"
+            rm -f "$tmp"
+            [ -n "$ver" ] && printf '%s\n' "$ver" && return 0
+        fi
+    done <<EOF
+$(route_urls "$api")
+EOF
+    rm -f "$tmp"
+    return 1
 }
 
 normalize_version() {
@@ -105,13 +156,12 @@ install_binary() {
     trap 'rm -rf -- "$tmp_dir"; trap - RETURN' RETURN
     base="https://github.com/${REPO}/releases/download/v${ver}"
 
-    local sums_route
-    sums_route="$(fastest_route "$base/SHA256SUMS")" || { echo 'no reachable SHA256SUMS route' >&2; return 1; }
-    local selected_base="${sums_route%/SHA256SUMS}"
-    curl -fsSL --max-time 60 "$sums_route" -o "$tmp_dir/SHA256SUMS"
+    local sums_route selected_base
+    sums_route="$(download_first_ok "$tmp_dir/SHA256SUMS" "$base/SHA256SUMS")" || { echo 'no reachable SHA256SUMS route' >&2; return 1; }
+    selected_base="${sums_route%/SHA256SUMS}"
 
     downloaded="$tmp_dir/${asset}${ext}"
-    curl -fsSL --max-time 300 "$selected_base/${asset}${ext}" -o "$downloaded"
+    download_first_ok "$downloaded" "$base/${asset}${ext}" || { echo 'no reachable release asset route' >&2; return 1; }
     expected=$(awk -v name="${asset}${ext}" '$2==name || $2==("dist/" name) {print $1; exit}' "$tmp_dir/SHA256SUMS")
     [[ "$expected" =~ ^[a-f0-9]{64}$ ]] || { echo 'missing official artifact checksum' >&2; return 1; }
     if command -v sha256sum >/dev/null 2>&1; then

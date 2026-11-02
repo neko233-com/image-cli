@@ -48,7 +48,9 @@ irm https://ghproxy.net/https://raw.githubusercontent.com/neko233-com/image-cli/
 
 | 变量 | 说明 |
 |------|------|
-| `IMAGE_CLI_UPDATE_MIRRORS` | 下载/更新镜像前缀列表（逗号分隔），默认 `gh-proxy.com`, `ghfast.top`, `ghproxy.net` |
+| `IMAGE_CLI_UPDATE_MIRRORS` | 下载/更新镜像前缀列表（逗号分隔），默认多个 gh 加速前缀 |
+| `IMAGE_CLI_DOWNLOAD_SOURCE` | `auto`（默认）/`github`/`mirror`；`install.ps1` 与 `install.sh` 均支持 |
+| `IMAGE_CLI_PREFER_MIRROR=1` | `auto` 模式下优先镜像（适合国内） |
 | `IMAGE_CLI_DIRECT_ONLY=1` | 仅直连 GitHub |
 | `IMAGE_CLI_NO_UPDATE_CHECK=1` | 关闭每次命令后的懒更新提示（24h 节流） |
 | `IMAGE_CLI_INSTALL_DIR` | 自定义安装目录 |
