@@ -94,6 +94,13 @@ image-cli atlas pack -format cocos -out-dir ./out ./sprites
 image-cli atlas unpack -out-dir ./sprites ./out/atlas.plist
 image-cli gif pack -o anim.gif -delay 8 ./frames
 image-cli gif extract -out-dir ./frames anim.gif
+image-cli key -color green -despill -o cut.png plate.png
+image-cli key -color screen -bg scene.jpg -o comp.png actor.png
+image-cli gif key -color green -o cut.gif plate.gif
+image-cli sticker -color green -stroke 8 -stroke-color white -o sticker.png face.png
+image-cli meme -top 当绿幕抠干净 -bottom 就可以发表情包 photo.jpg
+image-cli letterbox -aspect 2.39 shot.png
+image-cli batch key -color green -jobs 0 -out-dir ./cut ./plates
 image-cli adjust -brightness 5 -gamma 1.1 photo.jpg
 
 # 游戏资源（UI 默认无 mip / 无 ASTC）
@@ -107,7 +114,9 @@ image-cli game profiles
 
 支持读取：**PNG / JPEG / WebP / GIF / BMP / TIFF**；写出：**PNG / JPEG / WebP / GIF / BMP / TIFF**。
 
-规范检查见 [docs/SPEC.md](docs/SPEC.md)。图集与 GIF 见 [docs/ATLAS.md](docs/ATLAS.md)。批量命令（`check`、`batch convert`、`batch optimize`、`game prepare` 目录）默认按 CPU 数并行，可用 `-jobs` 指定。
+给 Agent 的系统提示和配方：`image-cli agent`。说明见 [docs/AGENT.md](docs/AGENT.md)。
+
+规范检查见 [docs/SPEC.md](docs/SPEC.md)。图集与 GIF 见 [docs/ATLAS.md](docs/ATLAS.md)。绿幕、遮幅和表情包见 [docs/VFX.md](docs/VFX.md)。批量命令（`check`、`batch convert`、`batch optimize`、`game prepare` 目录）默认按 CPU 数并行，可用 `-jobs` 指定。
 
 ## 从源码构建
 

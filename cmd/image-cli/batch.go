@@ -7,7 +7,7 @@ import (
 
 func runBatch(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: image-cli batch <check|convert|optimize|prepare> [flags] <dir|file>")
+		return fmt.Errorf("usage: image-cli batch <check|convert|optimize|prepare|key|sticker> [flags] <dir|file>")
 	}
 	switch args[0] {
 	case "check":
@@ -18,6 +18,10 @@ func runBatch(args []string) error {
 		return runBatchOptimize(args[1:])
 	case "prepare":
 		return runGameBatchPrepare(args[1:])
+	case "key":
+		return runBatchKey(args[1:])
+	case "sticker":
+		return runBatchSticker(args[1:])
 	default:
 		return fmt.Errorf("unknown batch subcommand: %s", args[0])
 	}

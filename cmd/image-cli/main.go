@@ -100,6 +100,24 @@ func dispatch(cmd string, args []string) error {
 		return runAtlas(args)
 	case "gif":
 		return runGIF(args)
+	case "key":
+		return runKey(args)
+	case "matte":
+		return runMatte(args)
+	case "composite":
+		return runComposite(args)
+	case "letterbox":
+		return runLetterbox(args)
+	case "vignette":
+		return runVignette(args)
+	case "sticker":
+		return runSticker(args)
+	case "meme":
+		return runMeme(args)
+	case "caption":
+		return runCaption(args)
+	case "agent", "prompts":
+		return runAgent(args)
 	case "watermark":
 		return runWatermark(args)
 	case "batch-convert":
@@ -581,11 +599,11 @@ func usage() {
   image-cli <command> [flags] [args]
 
 命令:
-  info            图片元信息（-budget 多平台预算检测）
+  agent           给 Agent 的完整提示词和配方（-json，-task id）
   check           平台预算 + 规范（-domain game|design|film|vfx，-jobs 并行）
   convert         格式转换 png/jpeg/webp/gif/bmp/tiff
   batch-convert   批量转换目录（同 batch convert）
-  batch           批量：check | convert | optimize | prepare
+  batch           批量：check | convert | optimize | prepare | key | sticker
   optimize        游戏向压缩（可选缩放到 max-width/height）
   resize crop rotate flip pad
   rgb             提取 R/G/B/A 通道或 raw RGB
@@ -595,7 +613,15 @@ func usage() {
   split           精灵表切格
   atlas pack      合图：-format unity|ue|cocos
   atlas unpack    按 Unity .meta / UE JSON / Cocos plist 解图
-  gif info|extract|pack  动画 GIF 查看、拆帧、合帧
+  gif info|extract|pack|key  动画 GIF；key 为绿幕抠像并保留透明
+  key             绿幕/蓝幕抠像（-color green|screen|blue，-bg 合成）
+  matte           收缩、扩张、羽化透明通道
+  composite       前景叠到背景
+  letterbox       电影遮幅（-aspect 2.39）
+  vignette        暗角
+  sticker         抠像 + 描边，做成表情贴纸（-text 需要字体）
+  meme            上下字幕表情包（-top -bottom）
+  caption         在指定位置写字
   watermark       叠加水印
   mipmap          显式生成 mipmap PNG 链（默认 UI 流程不启用）
   game prepare    单张或目录；-profile auto 识别 3D/特效贴图
@@ -609,6 +635,7 @@ func usage() {
   IMAGE_CLI_NO_UPDATE_CHECK=1     关闭懒更新提示
   IMAGE_CLI_UPDATE_MIRRORS        GitHub 加速镜像列表（逗号分隔）
   IMAGE_CLI_DIRECT_ONLY=1         仅直连 GitHub
+  IMAGE_CLI_FONT                  字幕 / 表情包使用的字体文件
 
 `, version.String())
 	fmt.Fprintf(os.Stderr, "平台: %s/%s\n", runtime.GOOS, runtime.GOARCH)

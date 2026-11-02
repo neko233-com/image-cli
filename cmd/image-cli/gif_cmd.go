@@ -23,9 +23,32 @@ func runGIF(args []string) error {
 		return runGIFExtract(args[1:])
 	case "pack":
 		return runGIFPack(args[1:])
+	case "key":
+		return runGIFKey(args[1:])
 	default:
 		return fmt.Errorf("unknown gif subcommand: %s", args[0])
 	}
+}
+
+func runGIFKey(args []string) error {
+	fs := flag.NewFlagSet("gif key", flag.ExitOnError)
+	var k keyOpts
+	bindKey(fs, &k)
+	_ = fs.Parse(args)
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: image-cli gif key [-color green] [-o out.gif] <file.gif>")
+	}
+	key, err := img.ParseKeyColor(k.color)
+	if err != nil {
+		return err
+	}
+	dest := k.out
+	if dest == "" {
+		dest = img.OutputPath(fs.Arg(0), "", "gif")
+	}
+	return img.KeyGIF(fs.Arg(0), dest, img.KeyOptions{
+		Key: key, Similarity: k.similarity, Smoothness: k.smoothness, Despill: k.despill,
+	}, k.choke, k.feather)
 }
 
 func runGIFInfo(args []string) error {

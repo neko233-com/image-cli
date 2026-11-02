@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"os/exec"
@@ -126,6 +127,49 @@ func TestCLIPrepareAutoProfiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(outDir, "hero_n_prepared.png")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCLIAgentTask(t *testing.T) {
+	out := runCLI(t, "agent", "-task", "game-textures")
+	if !strings.Contains(string(out), "-profile auto") {
+		t.Fatalf("%s", out)
+	}
+}
+
+func TestCLIKeyGreen(t *testing.T) {
+	dir := t.TempDir()
+	in := filepath.Join(dir, "plate.png")
+	f, err := os.Create(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	im := image.NewNRGBA(image.Rect(0, 0, 2, 1))
+	im.SetNRGBA(0, 0, color.NRGBA{G: 255, A: 255})
+	im.SetNRGBA(1, 0, color.NRGBA{R: 255, A: 255})
+	if err := png.Encode(f, im); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+	out := filepath.Join(dir, "cut.png")
+	runCLI(t, "key", "-color", "green", "-o", out, in)
+	decoded, err := os.Open(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer decoded.Close()
+	got, err := png.Decode(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, a := got.At(0, 0).RGBA()
+	if a != 0 {
+		t.Fatalf("green pixel alpha %d", a)
+	}
+	_, _, _, a = got.At(1, 0).RGBA()
+	if a == 0 {
+		t.Fatal("subject was removed")
 	}
 }
 
