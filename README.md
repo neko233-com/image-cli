@@ -71,13 +71,29 @@ irm https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install
 ```text
 image-cli info [-exif] [-json] picture.jpg
 image-cli convert -format png -o out.png input.webp
-image-cli batch-convert -format png -r ./assets
+image-cli batch-convert -format webp -out-dir ./out ./assets   # 目录默认递归
+image-cli batch convert -format png ./assets                  # 同上（子命令形式）
+image-cli check -profile ui ./assets                          # 递归预算，-jobs 0 为 CPU 数
+image-cli check -domain film -jobs 8 ./plates                 # 影视规范
+image-cli check -domain design ./posters
+image-cli check -domain vfx -strict ./VFX
+image-cli check -domain auto -profile auto ./Textures         # 按文件名选规范
+image-cli batch optimize -max-width 2048 -out-dir ./out ./assets
+image-cli game batch-prepare -profile ui -no-compress -out-dir ./prepared ./assets
+image-cli game prepare -profile auto -fallback albedo -no-compress ./Textures   # 3D/特效按文件名
+image-cli game prepare -profile vfx -no-compress ./VFX
 image-cli optimize -format webp -max-width 2048 hero.png
 image-cli resize -w 512 -h 512 -mode fit sprite.png
 image-cli rgb -out-dir ./channels -raw sprite.png
 image-cli palette -n 32 concept.png
 image-cli pow2 -square texture.png          # 游戏 POT 贴图
 image-cli split -cols 4 -rows 4 sheet.png   # 精灵表
+image-cli atlas pack -format unity -out-dir ./out ./sprites
+image-cli atlas pack -format ue -out-dir ./out ./sprites
+image-cli atlas pack -format cocos -out-dir ./out ./sprites
+image-cli atlas unpack -out-dir ./sprites ./out/atlas.plist
+image-cli gif pack -o anim.gif -delay 8 ./frames
+image-cli gif extract -out-dir ./frames anim.gif
 image-cli adjust -brightness 5 -gamma 1.1 photo.jpg
 
 # 游戏资源（UI 默认无 mip / 无 ASTC）
@@ -90,6 +106,8 @@ image-cli game profiles
 ```
 
 支持读取：**PNG / JPEG / WebP / GIF / BMP / TIFF**；写出：**PNG / JPEG / WebP / GIF / BMP / TIFF**。
+
+规范检查见 [docs/SPEC.md](docs/SPEC.md)。图集与 GIF 见 [docs/ATLAS.md](docs/ATLAS.md)。批量命令（`check`、`batch convert`、`batch optimize`、`game prepare` 目录）默认按 CPU 数并行，可用 `-jobs` 指定。
 
 ## 从源码构建
 

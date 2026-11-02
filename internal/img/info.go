@@ -21,6 +21,7 @@ type FileInfo struct {
 	SizeBytes  int64          `json:"size_bytes"`
 	ColorModel string         `json:"color_model"`
 	HasAlpha   bool           `json:"has_alpha"`
+	Bits       int            `json:"bits"`
 	NPOT       bool           `json:"npot"`
 	PowerOfTwo bool           `json:"power_of_two"`
 	EXIF       map[string]any `json:"exif,omitempty"`
@@ -46,6 +47,7 @@ func Inspect(path string, withEXIF bool) (FileInfo, error) {
 		SizeBytes:  stat.Size(),
 		ColorModel: colorModelName(im),
 		HasAlpha:   imageHasAlpha(im),
+		Bits:       channelBits(im),
 		NPOT:       !isPowerOfTwo(w) || !isPowerOfTwo(h),
 		PowerOfTwo: isPowerOfTwo(w) && isPowerOfTwo(h),
 	}
@@ -67,6 +69,7 @@ func PrintInfo(info FileInfo, asJSON bool) error {
 	fmt.Printf("file_bytes:  %d\n", info.SizeBytes)
 	fmt.Printf("color_model: %s\n", info.ColorModel)
 	fmt.Printf("has_alpha:   %v\n", info.HasAlpha)
+	fmt.Printf("bits:        %d\n", info.Bits)
 	fmt.Printf("power_of_2:  %v\n", info.PowerOfTwo)
 	fmt.Printf("npot:        %v\n", info.NPOT)
 	if len(info.EXIF) > 0 {
@@ -117,6 +120,15 @@ func colorModelName(im image.Image) string {
 			name = name[i+1:]
 		}
 		return strings.TrimSuffix(name, "Model")
+	}
+}
+
+func channelBits(im image.Image) int {
+	switch im.ColorModel() {
+	case color.Gray16Model, color.RGBA64Model, color.NRGBA64Model:
+		return 16
+	default:
+		return 8
 	}
 }
 

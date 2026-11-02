@@ -9,6 +9,7 @@ import (
 type Profile string
 
 const (
+	ProfileAuto     Profile = "auto"
 	ProfileUI       Profile = "ui"
 	ProfileSprite   Profile = "sprite"
 	ProfileAtlas    Profile = "atlas"
@@ -18,19 +19,70 @@ const (
 	ProfileNormal   Profile = "normal"
 	ProfileEmissive Profile = "emissive"
 	ProfileORM      Profile = "orm"
+	ProfileRoughness Profile = "roughness"
+	ProfileMetallic  Profile = "metallic"
+	ProfileAO        Profile = "ao"
+	ProfileHeight    Profile = "height"
+	ProfileMask      Profile = "mask"
+	ProfileDetail    Profile = "detail"
+	ProfileSpecular  Profile = "specular"
+	ProfileOpacity   Profile = "opacity"
+	ProfileFlow      Profile = "flow"
+	ProfileNoise     Profile = "noise"
+	ProfileHDR       Profile = "hdr"
 	ProfileLightmap Profile = "lightmap"
 	ProfileCubemap  Profile = "cubemap"
 )
 
-func ParseProfile(s string) (Profile, error) {
-	p := Profile(strings.ToLower(strings.TrimSpace(s)))
-	switch p {
-	case ProfileUI, ProfileSprite, ProfileAtlas, ProfileIcon, ProfileVFX,
-		ProfileAlbedo, ProfileNormal, ProfileEmissive, ProfileORM, ProfileLightmap, ProfileCubemap:
-		return p, nil
-	default:
-		return "", fmt.Errorf("unknown profile %q (ui|sprite|atlas|icon|vfx|albedo|normal|emissive|orm|lightmap|cubemap)", s)
+// AllProfiles 返回可执行的场景（不含 auto）。
+func AllProfiles() []Profile {
+	return []Profile{
+		ProfileUI, ProfileSprite, ProfileAtlas, ProfileIcon, ProfileVFX,
+		ProfileAlbedo, ProfileNormal, ProfileEmissive, ProfileORM,
+		ProfileRoughness, ProfileMetallic, ProfileAO, ProfileHeight,
+		ProfileMask, ProfileDetail, ProfileSpecular, ProfileOpacity,
+		ProfileFlow, ProfileNoise, ProfileHDR,
+		ProfileLightmap, ProfileCubemap,
 	}
+}
+
+func ParseProfile(s string) (Profile, error) {
+	raw := strings.ToLower(strings.TrimSpace(s))
+	raw = strings.ReplaceAll(raw, "-", "")
+	raw = strings.ReplaceAll(raw, "_", "")
+	raw = strings.ReplaceAll(raw, " ", "")
+	if p, ok := profileAliases[raw]; ok {
+		return p, nil
+	}
+	return "", fmt.Errorf("unknown profile %q (see: image-cli game profiles)", s)
+}
+
+var profileAliases = map[string]Profile{
+	"auto": ProfileAuto,
+	"ui": ProfileUI, "hud": ProfileUI, "gui": ProfileUI,
+	"sprite": ProfileSprite, "sprites": ProfileSprite,
+	"atlas": ProfileAtlas, "sheet": ProfileAtlas, "spritesheet": ProfileAtlas,
+	"icon": ProfileIcon,
+	"vfx": ProfileVFX, "fx": ProfileVFX, "effect": ProfileVFX, "particle": ProfileVFX, "particles": ProfileVFX,
+	"albedo": ProfileAlbedo, "basecolor": ProfileAlbedo, "basecolour": ProfileAlbedo,
+	"diffuse": ProfileAlbedo, "diff": ProfileAlbedo, "color": ProfileAlbedo, "colour": ProfileAlbedo,
+	"base": ProfileAlbedo, "alb": ProfileAlbedo,
+	"normal": ProfileNormal, "nrm": ProfileNormal, "nrml": ProfileNormal, "normalmap": ProfileNormal, "nor": ProfileNormal,
+	"emissive": ProfileEmissive, "emission": ProfileEmissive, "emit": ProfileEmissive,
+	"orm": ProfileORM, "rma": ProfileORM, "arm": ProfileORM, "occlusionroughnessmetallic": ProfileORM,
+	"roughness": ProfileRoughness, "rough": ProfileRoughness, "smoothness": ProfileRoughness,
+	"metallic": ProfileMetallic, "metal": ProfileMetallic, "metalness": ProfileMetallic,
+	"ao": ProfileAO, "occlusion": ProfileAO, "ambientocclusion": ProfileAO, "ambient": ProfileAO,
+	"height": ProfileHeight, "disp": ProfileHeight, "displacement": ProfileHeight, "bump": ProfileHeight,
+	"mask": ProfileMask,
+	"detail": ProfileDetail, "detailmask": ProfileDetail, "detailnormal": ProfileNormal,
+	"specular": ProfileSpecular, "spec": ProfileSpecular,
+	"opacity": ProfileOpacity, "alpha": ProfileOpacity,
+	"flow": ProfileFlow, "flowmap": ProfileFlow,
+	"noise": ProfileNoise,
+	"hdr": ProfileHDR, "exr": ProfileHDR,
+	"lightmap": ProfileLightmap, "light": ProfileLightmap, "gi": ProfileLightmap,
+	"cubemap": ProfileCubemap, "cube": ProfileCubemap, "env": ProfileCubemap, "sky": ProfileCubemap,
 }
 
 // Target 平台目标：移动端默认 ASTC，PC 走 BC 系列。
@@ -80,75 +132,73 @@ func Defaults(profile Profile, target Target) ProfileDefaults {
 	case ProfileUI:
 		d.MaxEdge = 2048
 		d.Premultiply = true
-	case ProfileSprite, ProfileAtlas, ProfileVFX:
+	case ProfileSprite, ProfileAtlas:
 		d.MaxEdge = 4096
+		d.Premultiply = true
+	case ProfileVFX:
+		d.MaxEdge = 2048
+		d.Premultiply = true
 	case ProfileIcon:
 		d.MaxEdge = 1024
-	case ProfileAlbedo:
-		d.Pow2 = true
-		d.MaxEdge = 4096
-		d.Compress = true
-		d.SRGB = true
-		if target == TargetPC {
-			d.CompressFormat = "bc7"
-		} else {
-			d.CompressFormat = "astc"
-			d.ASTCMode = "L"
-		}
+	case ProfileAlbedo, ProfileDetail:
+		return colorMap(target, 4096, true)
 	case ProfileNormal:
-		d.Pow2 = true
-		d.MaxEdge = 4096
-		d.Compress = true
-		d.SRGB = false
-		if target == TargetPC {
-			d.CompressFormat = "bc5"
-		} else {
-			d.CompressFormat = "astc"
-			d.ASTCMode = "norm"
-		}
+		return dataMap(target, 4096, "bc5", "norm")
 	case ProfileEmissive:
+		return colorMap(target, 2048, false)
+	case ProfileORM, ProfileMask:
+		return dataMap(target, 4096, "bc7", "linear")
+	case ProfileRoughness, ProfileMetallic, ProfileAO, ProfileHeight, ProfileSpecular, ProfileOpacity:
+		return dataMap(target, 4096, "bc4", "linear")
+	case ProfileFlow, ProfileNoise:
+		d.MaxEdge = 1024
 		d.Pow2 = true
-		d.MaxEdge = 2048
+		d.SRGB = false
 		d.Compress = true
 		if target == TargetPC {
 			d.CompressFormat = "bc7"
 		} else {
 			d.CompressFormat = "astc"
-			d.ASTCMode = "H"
+			d.ASTCMode = "linear"
 		}
-	case ProfileORM:
-		d.Pow2 = true
-		d.MaxEdge = 4096
-		d.Compress = true
-		d.SRGB = false
-		if target == TargetPC {
-			d.CompressFormat = "bc7"
-		} else {
-			d.CompressFormat = "astc"
-			d.ASTCMode = "L"
-		}
-	case ProfileLightmap:
-		d.Pow2 = true
-		d.MaxEdge = 2048
-		d.Compress = true
-		d.SRGB = false
-		if target == TargetPC {
-			d.CompressFormat = "bc6h"
-		} else {
-			d.CompressFormat = "astc"
-			d.ASTCMode = "H"
-		}
+	case ProfileHDR, ProfileLightmap:
+		return hdrMap(target, 2048, false)
 	case ProfileCubemap:
-		d.Pow2 = true
-		d.Square = true
-		d.MaxEdge = 2048
-		d.Compress = true
-		if target == TargetPC {
-			d.CompressFormat = "bc6h"
-		} else {
-			d.CompressFormat = "astc"
-			d.ASTCMode = "H"
-		}
+		out := hdrMap(target, 2048, true)
+		return out
+	}
+	return d
+}
+
+func colorMap(target Target, edge int, srgb bool) ProfileDefaults {
+	d := ProfileDefaults{Pow2: true, MaxEdge: edge, Compress: true, SRGB: srgb, ASTCMode: "srgb", CompressFormat: "astc"}
+	if !srgb {
+		d.ASTCMode = "hdr"
+	}
+	if target == TargetPC {
+		d.CompressFormat = "bc7"
+	}
+	return d
+}
+
+func dataMap(target Target, edge int, pcFormat, astcMode string) ProfileDefaults {
+	d := ProfileDefaults{
+		Pow2: true, MaxEdge: edge, Compress: true, SRGB: false,
+		CompressFormat: "astc", ASTCMode: astcMode,
+	}
+	if target == TargetPC {
+		d.CompressFormat = pcFormat
+	}
+	return d
+}
+
+func hdrMap(target Target, edge int, square bool) ProfileDefaults {
+	d := ProfileDefaults{
+		Pow2: true, Square: square, MaxEdge: edge, Compress: true, SRGB: false,
+		CompressFormat: "astc", ASTCMode: "hdr",
+	}
+	if target == TargetPC {
+		d.CompressFormat = "bc6h"
 	}
 	return d
 }

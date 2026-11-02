@@ -70,6 +70,65 @@ func TestCLICheckOnSmallPNG(t *testing.T) {
 	}
 }
 
+func TestCLICheckDomainFilmParallel(t *testing.T) {
+	dir := t.TempDir()
+	writeMinimalPNG(t, filepath.Join(dir, "a.png"))
+	writeMinimalPNG(t, filepath.Join(dir, "b.png"))
+	out := runCLI(t, "check", "-domain", "film", "-jobs", "2", dir)
+	if !strings.Contains(string(out), "workers=2") {
+		t.Fatalf("%s", out)
+	}
+	if !strings.Contains(string(out), "低于 HD") {
+		t.Fatalf("%s", out)
+	}
+}
+
+func TestCLICheckRecursiveDir(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "nested")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeMinimalPNG(t, filepath.Join(dir, "root.png"))
+	writeMinimalPNG(t, filepath.Join(sub, "child.png"))
+	out := runCLI(t, "check", "-profile", "ui", dir)
+	if strings.Count(string(out), "overall:") != 2 {
+		t.Fatalf("expected 2 reports, got:\n%s", out)
+	}
+}
+
+func TestCLIBatchConvertMirrorTree(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "icons")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeMinimalPNG(t, filepath.Join(sub, "a.png"))
+	outDir := filepath.Join(dir, "out")
+	runCLI(t, "batch", "convert", "-format", "png", "-out-dir", outDir, dir)
+	want := filepath.Join(outDir, "icons", "a.png")
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("missing %s", want)
+	}
+}
+
+func TestCLIPrepareAutoProfiles(t *testing.T) {
+	dir := t.TempDir()
+	writeMinimalPNG(t, filepath.Join(dir, "hero_albedo.png"))
+	writeMinimalPNG(t, filepath.Join(dir, "hero_n.png"))
+	writeMinimalPNG(t, filepath.Join(dir, "fx_fire_vfx.png"))
+	outDir := filepath.Join(dir, "prepared")
+	out := runCLI(t, "game", "prepare", "-profile", "auto", "-fallback", "albedo", "-no-compress", "-out-dir", outDir, dir)
+	for _, name := range []string{"hero_albedo", "hero_n", "fx_fire_vfx"} {
+		if !strings.Contains(string(out), name) {
+			t.Fatalf("missing %s in %s", name, out)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "hero_n_prepared.png")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCLIGamePrepareUI(t *testing.T) {
 	dir := t.TempDir()
 	png := filepath.Join(dir, "ui.png")

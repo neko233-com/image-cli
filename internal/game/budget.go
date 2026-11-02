@@ -165,9 +165,11 @@ func PlatformsForProfile(profile Profile) []Platform {
 	switch profile {
 	case ProfileUI, ProfileIcon:
 		return []Platform{PlatformWindows, PlatformMac, PlatformIOS, PlatformAndroid, PlatformWebGL, PlatformWebGLMobile, PlatformMinigame}
-	case ProfileSprite, ProfileAtlas, ProfileVFX:
+	case ProfileSprite, ProfileAtlas, ProfileVFX, ProfileNoise, ProfileFlow, ProfileOpacity:
 		return []Platform{PlatformIOS, PlatformAndroid, PlatformWebGL, PlatformWebGLMobile, PlatformMinigame, PlatformSwitch}
-	case ProfileAlbedo, ProfileNormal, ProfileEmissive, ProfileORM, ProfileLightmap, ProfileCubemap:
+	case ProfileAlbedo, ProfileNormal, ProfileEmissive, ProfileORM, ProfileLightmap, ProfileCubemap,
+		ProfileRoughness, ProfileMetallic, ProfileAO, ProfileHeight, ProfileMask, ProfileDetail,
+		ProfileSpecular, ProfileHDR:
 		return AllPlatforms()
 	default:
 		return AllPlatforms()

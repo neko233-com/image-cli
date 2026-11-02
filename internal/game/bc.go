@@ -29,6 +29,8 @@ func EncodeBC(inputPNG, outputDDS string, opts BCOptions) error {
 		dxgi = "BC6H_UF16"
 	case "bc3", "dxt5":
 		dxgi = "BC3_UNORM"
+	case "bc4", "bc4_unorm":
+		dxgi = "BC4_UNORM"
 	default:
 		return fmt.Errorf("unsupported bc format %q", opts.Format)
 	}

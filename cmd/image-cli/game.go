@@ -36,145 +36,11 @@ func runGame(args []string) error {
 }
 
 func runGamePrepare(args []string) error {
-	fs := flag.NewFlagSet("game prepare", flag.ExitOnError)
-	profile := fs.String("profile", "ui", "场景: ui|sprite|atlas|icon|vfx|albedo|normal|emissive|orm|lightmap|cubemap")
-	target := fs.String("platform", "mobile", "mobile|pc")
-	mipmap := fs.Bool("mipmap", false, "生成 mipmap（默认 false，UI 优先）")
-	maxMip := fs.Int("max-mip-levels", 0, "限制 mip 级数，0=直到 1x1")
-	mipFilter := fs.String("mip-filter", "box", "mip 缩放: box|lanczos")
-	pow2 := fs.Bool("pow2", false, "扩边到 2 的幂（3D profile 默认开启）")
-	square := fs.Bool("square", false, "扩边为正方形 POT")
-	maxEdge := fs.Int("max-edge", 0, "最长边上限")
-	compress := fs.Bool("compress", false, "强制 ASTC/BC；3D profile 默认已开启")
-	noCompress := fs.Bool("no-compress", false, "仅 PNG 预处理")
-	format := fs.String("format", "auto", "auto|astc|bc7|bc5|bc6h|none")
-	block := fs.String("block", "4x4", "ASTC 块大小")
-	quality := fs.String("quality", "medium", "astcenc 质量")
-	astcMode := fs.String("astc-mode", "", "ASTC: srgb|hdr|norm|linear")
-	outDir := fs.String("out-dir", "", "输出目录")
-	manifest := fs.Bool("manifest", true, "写入 .image-cli.json")
-	premul := fs.Bool("premultiply", false, "预乘 alpha")
-	_ = fs.Parse(args)
-	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: image-cli game prepare [flags] <input>")
-	}
-
-	p, err := game.ParseProfile(*profile)
-	if err != nil {
-		return err
-	}
-	tg, err := game.ParseTarget(*target)
-	if err != nil {
-		return err
-	}
-	def := game.Defaults(p, tg)
-
-	useCompress := def.Compress
-	if *noCompress {
-		useCompress = false
-	}
-	if *compress {
-		useCompress = true
-	}
-
-	opts := game.PrepareOptions{
-		Profile:       p,
-		Target:        tg,
-		Mipmap:        mipmap,
-		MaxMipLevels:  *maxMip,
-		MipFilter:     *mipFilter,
-		MaxEdge:       *maxEdge,
-		Format:        *format,
-		Block:         *block,
-		Quality:       *quality,
-		ASTCMode:      *astcMode,
-		OutDir:        *outDir,
-		WriteManifest: *manifest,
-		SkipCompress:  !useCompress,
-		Compress:      boolPtr(useCompress),
-	}
-	if *pow2 {
-		opts.Pow2 = boolPtr(true)
-	} else if def.Pow2 {
-		opts.Pow2 = boolPtr(true)
-	}
-	if *square {
-		opts.Square = boolPtr(true)
-	} else if def.Square {
-		opts.Square = boolPtr(true)
-	}
-	if *premul {
-		opts.Premultiply = boolPtr(true)
-	} else if def.Premultiply {
-		opts.Premultiply = boolPtr(true)
-	}
-	if *maxEdge == 0 && def.MaxEdge > 0 {
-		opts.MaxEdge = def.MaxEdge
-	}
-
-	res, err := game.Prepare(fs.Arg(0), opts)
-	if err != nil {
-		return err
-	}
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(res.Manifest)
+	return runPrepareCommand("game prepare", args)
 }
 
 func runGameBatchPrepare(args []string) error {
-	fs := flag.NewFlagSet("game batch-prepare", flag.ExitOnError)
-	profile := fs.String("profile", "ui", "场景 profile")
-	target := fs.String("platform", "mobile", "mobile|pc")
-	mipmap := fs.Bool("mipmap", false, "生成 mipmap")
-	compress := fs.Bool("compress", false, "强制压缩")
-	noCompress := fs.Bool("no-compress", false, "禁用压缩")
-	recursive := fs.Bool("r", false, "递归目录")
-	outDir := fs.String("out-dir", "", "输出根目录（默认各文件同目录）")
-	_ = fs.Parse(args)
-	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: image-cli game batch-prepare [flags] <dir>")
-	}
-	p, err := game.ParseProfile(*profile)
-	if err != nil {
-		return err
-	}
-	tg, err := game.ParseTarget(*target)
-	if err != nil {
-		return err
-	}
-	def := game.Defaults(p, tg)
-	useCompress := def.Compress
-	if *noCompress {
-		useCompress = false
-	}
-	if *compress {
-		useCompress = true
-	}
-
-	return img.EachRaster(fs.Arg(0), *recursive, func(path string) error {
-		dir := *outDir
-		if dir == "" {
-			dir = filepath.Dir(path)
-		}
-		opts := game.PrepareOptions{
-			Profile:       p,
-			Target:        tg,
-			Mipmap:        mipmap,
-			MaxEdge:       def.MaxEdge,
-			OutDir:        dir,
-			WriteManifest: true,
-			SkipCompress:  !useCompress,
-			Compress:      boolPtr(useCompress),
-		}
-		if def.Pow2 {
-			opts.Pow2 = boolPtr(true)
-		}
-		if _, err := game.Prepare(path, opts); err != nil {
-			return fmt.Errorf("%s: %w", path, err)
-		}
-		fmt.Println(path)
-		return nil
-	})
+	return runPrepareCommand("game batch-prepare", args)
 }
 
 func runGameASTC(args []string) error {
@@ -201,7 +67,7 @@ func runGameASTC(args []string) error {
 func runGameBC(args []string) error {
 	fs := flag.NewFlagSet("game bc", flag.ExitOnError)
 	out := fs.String("o", "", "输出 .dds")
-	format := fs.String("format", "bc7", "bc7|bc5|bc6h|bc3")
+	format := fs.String("format", "bc7", "bc7|bc5|bc6h|bc4|bc3")
 	mipmap := fs.Bool("mipmap", false, "生成 mipmap")
 	_ = fs.Parse(args)
 	if fs.NArg() != 1 {
@@ -293,10 +159,7 @@ func printGameProfiles() {
 		Pow2Default    bool   `json:"pow2_default"`
 	}
 	var rows []row
-	for _, p := range []game.Profile{
-		game.ProfileUI, game.ProfileSprite, game.ProfileAtlas, game.ProfileIcon, game.ProfileVFX,
-		game.ProfileAlbedo, game.ProfileNormal, game.ProfileEmissive, game.ProfileORM, game.ProfileLightmap, game.ProfileCubemap,
-	} {
+	for _, p := range game.AllProfiles() {
 		m := game.Defaults(p, game.TargetMobile)
 		pc := game.Defaults(p, game.TargetPC)
 		rows = append(rows, row{

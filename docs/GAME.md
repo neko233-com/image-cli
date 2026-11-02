@@ -6,14 +6,22 @@
 
 | profile | 典型用途 | 默认 mipmap | 移动端压缩 | PC 压缩 |
 |---------|----------|-------------|------------|---------|
-| `ui` | 界面、HUD | 否 | 无 | 无 |
-| `sprite` / `atlas` / `vfx` | 2D 精灵、图集、特效 | 否 | 无 | 无 |
+| `ui` | 界面、HUD | 否 | 无（预乘 alpha） | 无 |
+| `sprite` / `atlas` | 2D 精灵、图集 | 否 | 无（预乘 alpha） | 无 |
+| `vfx` | 粒子 / 特效序列 | 否 | 无（预乘 alpha，可 `-compress`） | 无 |
 | `icon` | 应用图标 | 否 | 无 | 无 |
-| `albedo` | 基础色 | 否 | ASTC sRGB 4x4 | BC7 |
+| `albedo` / `detail` | 基础色、细节色 | 否 | ASTC sRGB | BC7 |
 | `normal` | 法线 | 否 | ASTC normal | BC5 |
 | `emissive` | 自发光 | 否 | ASTC HDR | BC7 |
-| `orm` | AO/R/M 打包后贴图 | 否 | ASTC | BC7 |
-| `lightmap` / `cubemap` | 光照 / 环境立方体 | 否 | ASTC HDR | BC6H |
+| `orm` / `mask` | 打包贴图、遮罩 | 否 | ASTC linear | BC7 |
+| `roughness` / `metallic` / `ao` / `height` / `specular` / `opacity` | 3D 数据贴图 | 否 | ASTC linear | BC4 |
+| `flow` / `noise` | 流动、噪声 | 否 | ASTC linear | BC7 |
+| `hdr` / `lightmap` | HDR / 光照 | 否 | ASTC HDR | BC6H |
+| `cubemap` | 环境立方体 | 否 | ASTC HDR | BC6H |
+
+`game prepare` 与 `game batch-prepare` / `batch prepare` 使用同一套参数：`-mipmap`、`-pow2`、`-format`、`-block`、`-quality`、`-astc-mode`、`-max-edge`、`-compress` / `-no-compress`、`-out-dir`、`-mirror-tree`、`-jobs`、`-continue`。目录输入默认递归。`-jobs 0`（默认）等于逻辑 CPU 数，处理在收集完路径后并行执行。
+
+`-profile auto` 按文件名识别（如 `_albedo`、`_n`、`_orm`、`_roughness`、`_vfx`、`_cubemap`）。识别失败时用 `-fallback`（默认 `ui`）。别名示例：`basecolor`→albedo，`particle`→vfx，`smoothness`→roughness（不反转数值）。
 
 查看机器可读默认值：
 
@@ -63,7 +71,15 @@ image-cli game prepare -profile orm -platform mobile orm.png
 **批量 UI 目录**
 
 ```bash
-image-cli game batch-prepare -profile ui -no-compress -r ./Assets/UI
+image-cli game batch-prepare -profile ui -no-compress ./Assets/UI
+```
+
+**一个模型目录：按文件名分别处理 albedo / 法线 / ORM / 特效**
+
+```bash
+image-cli game prepare -profile auto -fallback albedo -platform mobile -no-compress -out-dir ./prepared ./Textures
+image-cli batch prepare -profile vfx -premultiply -no-compress ./VFX
+image-cli game prepare -profile roughness -platform pc -mipmap -no-compress ground_roughness.png
 ```
 
 ## 外部工具

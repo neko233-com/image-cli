@@ -96,10 +96,16 @@ func dispatch(cmd string, args []string) error {
 		return runPow2(args)
 	case "split":
 		return runSplit(args)
+	case "atlas":
+		return runAtlas(args)
+	case "gif":
+		return runGIF(args)
 	case "watermark":
 		return runWatermark(args)
 	case "batch-convert":
 		return runBatchConvert(args)
+	case "batch":
+		return runBatch(args)
 	case "check":
 		return runCheck(args)
 	case "game":
@@ -541,40 +547,6 @@ func runWatermark(args []string) error {
 	return img.Save(dest, img.Watermark(base, wm, *x, *y, *opacity), img.EncodeOptions{Format: "png"})
 }
 
-func runBatchConvert(args []string) error {
-	fs := flag.NewFlagSet("batch-convert", flag.ExitOnError)
-	format := fs.String("format", "png", "目标格式")
-	outDir := fs.String("out-dir", "", "输出目录（默认同目录）")
-	recursive := fs.Bool("r", false, "递归子目录")
-	quality := fs.Int("quality", 90, "JPEG/WebP 质量")
-	_ = fs.Parse(args)
-	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: image-cli batch-convert -format png [-out-dir dir] <dir|file>")
-	}
-	root := fs.Arg(0)
-	return img.EachRaster(root, *recursive, func(path string) error {
-		im, _, err := img.Load(path)
-		if err != nil {
-			return err
-		}
-		ext, _ := img.NormalizeFormat(*format)
-		dir := filepath.Dir(path)
-		if *outDir != "" {
-			dir = *outDir
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return err
-			}
-		}
-		base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-		dest := filepath.Join(dir, base+"."+ext)
-		if err := img.Save(dest, im, img.EncodeOptions{Format: *format, Quality: *quality, StripAlpha: ext == "jpeg"}); err != nil {
-			return err
-		}
-		fmt.Println(dest)
-		return nil
-	})
-}
-
 func parseColor(s string) (color.Color, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	if s == "transparent" {
@@ -610,9 +582,10 @@ func usage() {
 
 命令:
   info            图片元信息（-budget 多平台预算检测）
-  check           专用于平台尺寸/体积是否合理（CI 友好）
+  check           平台预算 + 规范（-domain game|design|film|vfx，-jobs 并行）
   convert         格式转换 png/jpeg/webp/gif/bmp/tiff
-  batch-convert   批量转换目录
+  batch-convert   批量转换目录（同 batch convert）
+  batch           批量：check | convert | optimize | prepare
   optimize        游戏向压缩（可选缩放到 max-width/height）
   resize crop rotate flip pad
   rgb             提取 R/G/B/A 通道或 raw RGB
@@ -620,10 +593,13 @@ func usage() {
   gray blur sharpen adjust
   pow2            扩边到 2 的幂（可选 square）
   split           精灵表切格
+  atlas pack      合图：-format unity|ue|cocos
+  atlas unpack    按 Unity .meta / UE JSON / Cocos plist 解图
+  gif info|extract|pack  动画 GIF 查看、拆帧、合帧
   watermark       叠加水印
   mipmap          显式生成 mipmap PNG 链（默认 UI 流程不启用）
-  game prepare    游戏资源一站式预处理（profile / ASTC / BC）
-  game batch-prepare  批量预处理
+  game prepare    单张或目录；-profile auto 识别 3D/特效贴图
+  game batch-prepare  与 prepare 相同参数，适合目录
   game astc|bc|pack-orm  纹理压缩与 ORM 打包
   game profiles   打印各场景默认策略 JSON
   update          检查并更新到最新 Release

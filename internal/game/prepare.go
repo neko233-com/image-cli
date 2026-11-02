@@ -71,6 +71,13 @@ func Prepare(input string, opts PrepareOptions) (PrepareResult, error) {
 	if opts.Format != "" && opts.Format != "auto" {
 		compressFmt = strings.ToLower(opts.Format)
 	}
+	if compress && (compressFmt == "" || compressFmt == "none") {
+		if opts.Target == TargetPC {
+			compressFmt = "bc7"
+		} else {
+			compressFmt = "astc"
+		}
+	}
 	premul := def.Premultiply
 	if opts.Premultiply != nil {
 		premul = *opts.Premultiply
@@ -193,7 +200,7 @@ func Prepare(input string, opts PrepareOptions) (PrepareResult, error) {
 			return PrepareResult{}, fmt.Errorf("astc: %w (install astcenc or set IMAGE_CLI_ASTCENC)", err)
 		}
 		result.Manifest.Outputs = append(result.Manifest.Outputs, ManifestOutput{Kind: "astc", Path: outASTC})
-	case "bc7", "bc5", "bc6h", "bc3":
+	case "bc7", "bc5", "bc6h", "bc4", "bc3":
 		outDDS := filepath.Join(outDir, base+"_"+compressFmt+".dds")
 		if err := EncodeBC(compressInput, outDDS, BCOptions{Format: compressFmt, Mipmap: mipmap}); err != nil {
 			return PrepareResult{}, fmt.Errorf("bc: %w (install texconv or set IMAGE_CLI_TEXCONV)", err)
