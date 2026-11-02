@@ -26,8 +26,29 @@ func TestInstallScriptValidatesChecksum(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			name := "image-cli-linux-amd64"
+			osName := "linux"
+			archName := "amd64"
+			switch runtime.GOOS {
+			case "darwin":
+				osName = "darwin"
+			case "linux":
+				osName = "linux"
+			default:
+				t.Skip("install.sh integration on " + runtime.GOOS)
+			}
+			switch runtime.GOARCH {
+			case "amd64":
+				archName = "amd64"
+			case "arm64":
+				archName = "arm64"
+			default:
+				t.Skip("install.sh integration on " + runtime.GOARCH)
+			}
+			name := "image-cli-" + osName + "-" + archName
 			content := []byte{0x7f, 'E', 'L', 'F'}
+			if runtime.GOOS == "darwin" {
+				content = []byte{0xcf, 0xfa, 0xed, 0xfe} // Mach-O magic stub
+			}
 			sum := sha256.Sum256(content)
 			manifest := fmt.Sprintf("%x  dist/%s\n", sum, name)
 			if corrupt {
@@ -85,7 +106,11 @@ cp "$FIXTURE_ARTIFACTS/${url##*/}" "$target"
 			if err != nil {
 				t.Fatalf("install failed: %v\n%s", err, out)
 			}
-			if _, err := os.Stat(filepath.Join(installed, "image-cli")); err != nil {
+			binName := "image-cli"
+			if runtime.GOOS == "windows" {
+				binName += ".exe"
+			}
+			if _, err := os.Stat(filepath.Join(installed, binName)); err != nil {
 				t.Fatal(err)
 			}
 		})
