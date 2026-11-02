@@ -8,8 +8,8 @@
 #   IMAGE_CLI_UPDATE_MIRRORS  = 镜像前缀列表（逗号分隔，默认 gh-proxy/ghfast/ghproxy）
 #   IMAGE_CLI_PREFER_MIRROR   = 1 时 auto 模式优先走镜像
 #   IMAGE_CLI_DIRECT_ONLY     = 1 时仅直连 GitHub
+# 一键安装: irm .../install.ps1 | iex  （脚本内勿使用 CmdletBinding，否则 iex 会失败）
 
-[CmdletBinding()]
 param(
     [string]$Version = $(if ($env:IMAGE_CLI_VERSION) { $env:IMAGE_CLI_VERSION } else { "latest" }),
     [string]$Repo = $(if ($env:IMAGE_CLI_REPO) { $env:IMAGE_CLI_REPO } else { "neko233-com/image-cli" }),

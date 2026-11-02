@@ -38,11 +38,13 @@ curl -fsSL https://ghproxy.net/https://raw.githubusercontent.com/neko233-com/ima
 irm https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
 ```
 
-加速示例：
+国内推荐（自动镜像 + raw 加速）：
 
 ```powershell
 irm https://ghproxy.net/https://raw.githubusercontent.com/neko233-com/image-cli/main/scripts/install.ps1 | iex
 ```
+
+也可本地执行：`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1`
 
 ### 环境变量
 
