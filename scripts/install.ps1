@@ -10,14 +10,14 @@
 #   IMAGE_CLI_DIRECT_ONLY     = 1 时仅直连 GitHub
 # 一键安装: irm .../install.ps1 | iex  （无 param 块，保证 iex 兼容）
 
-$Version = "latest"
+$ReleaseTag = "latest"
 $Repo = "neko233-com/image-cli"
 $InstallDir = ""
 $Source = "auto"
 $NoPathUpdate = $false
 
-if ($args.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($args[0])) { $Version = $args[0] }
-if ($env:IMAGE_CLI_VERSION) { $Version = $env:IMAGE_CLI_VERSION }
+if ($args.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($args[0])) { $ReleaseTag = $args[0] }
+if ($env:IMAGE_CLI_VERSION) { $ReleaseTag = $env:IMAGE_CLI_VERSION }
 if ($env:IMAGE_CLI_REPO) { $Repo = $env:IMAGE_CLI_REPO }
 if ($env:IMAGE_CLI_DOWNLOAD_SOURCE) { $Source = $env:IMAGE_CLI_DOWNLOAD_SOURCE }
 if ($env:IMAGE_CLI_NO_PATH_UPDATE -eq "1") { $NoPathUpdate = $true }
@@ -201,12 +201,12 @@ try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 }
 
-if ([string]::IsNullOrWhiteSpace($Version) -or $Version -eq "latest") {
+if ([string]::IsNullOrWhiteSpace($ReleaseTag) -or $ReleaseTag -eq "latest") {
     $apiUrl = "https://api.github.com/repos/$Repo/releases/latest"
     $release = Invoke-ReleaseJson $apiUrl
-    $Version = $release.tag_name
+    $ReleaseTag = $release.tag_name
 }
-if (-not $Version.StartsWith("v")) { $Version = "v$Version" }
+if (-not $ReleaseTag.StartsWith("v")) { $ReleaseTag = "v$ReleaseTag" }
 
 $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 switch ($arch) {
@@ -216,12 +216,12 @@ switch ($arch) {
 }
 
 $asset = "${BinaryName}-windows-${archName}.exe"
-$baseUrl = "https://github.com/$Repo/releases/download/$Version"
+$baseUrl = "https://github.com/$Repo/releases/download/$ReleaseTag"
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("image-cli-install-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 
 try {
-    Write-Host "Installing image-cli $Version (windows/$archName) [source=$Source]"
+    Write-Host "Installing image-cli $ReleaseTag (windows/$archName) [source=$Source]"
     $binary = Join-Path $tempDir $asset
     $checksums = Join-Path $tempDir "SHA256SUMS"
 
